@@ -184,3 +184,60 @@ class SleepCompositionExtension:
         ax.xaxis.set_major_locator(mdates.HourLocator(interval=step, tz=start.tzinfo))
         ax.xaxis.set_major_formatter(mdates.DateFormatter("%-I %p", tz=start.tzinfo))
         ax.tick_params(labelsize=viewer.scale(10, 7))
+
+
+# Matches the clinician dashboard's "Daily step count" bars.
+STEP_BAR_COLOR = "#2878B5"
+
+
+class StepCountExtension:
+    """Per-day step totals as a bar chart, in a second subplot row.
+
+    Mirrors the clinician dashboard's "Daily step count" panel. Each bar is
+    positioned at its day's interval and carries that day's total; because the
+    record is a daily sum, the bars cannot be subdivided into intraday activity.
+
+    Parameters
+    ----------
+    steps : pandas.DataFrame
+        Output of :func:`~cgmsandbox.loader.load_step_count`.
+    bar_width_h : float
+        Bar width in hours. Below 24 so consecutive days read as separate bars.
+    y_max : float or None
+        Y-axis ceiling. Defaults to ~15% headroom above the tallest day.
+    show_values : bool
+        Annotate each bar with its step total.
+    """
+
+    def __init__(self, steps: pd.DataFrame, bar_width_h: float = 18.0,
+                 y_max: float | None = None, show_values: bool = True):
+        self.steps = steps
+        self.bar_width = pd.Timedelta(hours=bar_width_h)
+        self.y_max = y_max if y_max is not None else float(steps["steps"].max()) * 1.15
+        self.show_values = show_values
+
+    def draw(self):
+        viewer, ax = self.viewer, self.ax
+        start, end = viewer.view_start, viewer.view_end
+        vis = self.steps[(self.steps["end"] > start) & (self.steps["start"] < end)]
+        if vis.empty:
+            vis = self.steps
+
+        for _, r in vis.iterrows():
+            r_start, r_end, n = r["start"], r["end"], float(r["steps"])
+            center = r_start + (r_end - r_start) / 2
+            ax.bar(center, n, width=self.bar_width,
+                   color=STEP_BAR_COLOR, edgecolor="white", linewidth=0.7, zorder=3)
+            if self.show_values:
+                ax.text(center, n + self.y_max * 0.02, f"{int(n):,}",
+                        ha="center", va="bottom", fontsize=8, color="0.35")
+
+        ax.set_ylim(0, self.y_max)
+        ax.set_ylabel("Steps", color="0.2", fontsize=10)
+        for sp in ("top", "right"):
+            ax.spines[sp].set_visible(False)
+        ax.tick_params(length=0)
+        step = viewer.scale(2, 6)
+        ax.xaxis.set_major_locator(mdates.HourLocator(interval=step, tz=start.tzinfo))
+        ax.xaxis.set_major_formatter(mdates.DateFormatter("%-I %p", tz=start.tzinfo))
+        ax.tick_params(labelsize=viewer.scale(10, 7))

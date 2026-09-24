@@ -27,12 +27,13 @@ from .cgmquantify import (
     summarize_measures,
     tir_70_180,
 )
-from .extensions import HypnogramExtension, SleepCompositionExtension
+from .extensions import HypnogramExtension, SleepCompositionExtension, StepCountExtension
 from .loader import (
     load_cgm_data,
     load_food_entry_data,
     load_sleep_data,
     load_sleep_nights,
+    load_step_count,
 )
 from .overlays import (
     CgmMeasuresOverlay,
@@ -55,10 +56,12 @@ __all__ = [
     "load_sleep_data",
     "load_sleep_nights",
     "load_food_entry_data",
+    "load_step_count",
     # viewer and extensions
     "CGMViewer",
     "HypnogramExtension",
     "SleepCompositionExtension",
+    "StepCountExtension",
     # overlays
     "MeanGlucoseOverlay",
     "TimeInRangeOverlay",

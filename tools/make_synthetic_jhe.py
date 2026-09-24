@@ -58,6 +58,10 @@ MODALITIES = {
     "oxygen_saturation": ("omh", "oxygen-saturation", "2.0", "sensed"),
     "sleep_stage_summary": ("ieee", "sleep-stage-summary", "1.0", "sensed"),
     "food_entry": ("ieee", "food-entry", "0.1", "self-reported"),
+    # Study 30006 reports both as one record covering a whole local day, so the
+    # value is a daily total -- the shape a steps-per-day histogram needs.
+    "step_count": ("omh", "step-count", "3.0", "sensed"),
+    "physical_activity": ("omh", "physical-activity", "1.2", "sensed"),
 }
 
 CODES = {
@@ -66,6 +70,8 @@ CODES = {
     "oxygen_saturation": "omh:oxygen-saturation:2.0",
     "sleep_stage_summary": "ieee:sleep-stage-summary:1.0",
     "food_entry": "ieee:food-entry:0.1",
+    "step_count": "omh:step-count:3.0",
+    "physical_activity": "omh:physical-activity:1.2",
 }
 
 
@@ -346,8 +352,95 @@ def build_food_entry(start: pd.Timestamp, days: int, rng: np.random.Generator) -
     return df
 
 
-# --------------------------------------------------------------------------
 
+def build_step_count(local_days: list, rng: np.random.Generator) -> pd.DataFrame:
+    """One row per local day, matching seed_rich_demo.py's omh:step-count:3.0 body.
+
+    The real body is exactly:
+        step_count.{value,unit}           -- unit "steps"
+        effective_time_frame.time_interval.{start,end}_date_time
+        descriptive_statistic             -- "sum"
+        descriptive_statistic_denominator -- "d"
+
+    One record spans the whole day, so the value is a *daily total*. That is why
+    a per-day histogram is the natural visualisation and an intraday trace is
+    not reconstructable from it.
+    """
+    rows = []
+    for i, d in enumerate(local_days):
+        day_start = pd.Timestamp(d, tz=TZ_LOCAL)
+        day_end = day_start + pd.Timedelta(hours=23, minutes=59, seconds=59)
+        # weekend activity runs higher, which keeps the histogram from being
+        # a flat row of equal bars
+        base = 9200.0 if day_start.dayofweek >= 5 else 7400.0
+        steps = int(max(1500, base + 900 * np.sin(i / 4) + rng.uniform(-1800, 1800)))
+        rows.append(
+            {
+                "effective_time_frame_time_interval_start_date_time": _utc_str(pd.Series([day_start]))[0],
+                "effective_time_frame_time_interval_start_date_time_local": _local_str(pd.Series([day_start]))[0],
+                "effective_time_frame_time_interval_end_date_time": _utc_str(pd.Series([day_end]))[0],
+                "effective_time_frame_time_interval_end_date_time_local": _local_str(pd.Series([day_end]))[0],
+                "step_count_value": steps,
+                "step_count_unit": "steps",
+                "descriptive_statistic": "sum",
+                "descriptive_statistic_denominator": "d",
+            }
+        )
+    df = pd.DataFrame(rows)
+    starts = pd.to_datetime(df["effective_time_frame_time_interval_start_date_time"], utc=True)
+    admin = _admin_columns("step_count", len(df), 40000, starts.reset_index(drop=True))
+    for k, v in admin.items():
+        df.insert(0, k, v)
+    return df
+
+
+def build_physical_activity(steps: pd.DataFrame, rng: np.random.Generator) -> pd.DataFrame:
+    """One row per local day, matching seed_rich_demo.py's omh:physical-activity:1.2 body.
+
+    The real body is exactly:
+        activity_name
+        effective_time_frame.time_interval.{start,end}_date_time
+        distance.{value,unit}     -- metres
+        kcal_burned.{value,unit}  -- kcal
+        reported_activity_intensity
+
+    distance and kcal are derived from the same step totals that step_count
+    reports, mirroring the seeder's arithmetic, so the two files agree.
+    """
+    rows = []
+    for _, r in steps.iterrows():
+        n = int(r["step_count_value"])
+        rows.append(
+            {
+                "effective_time_frame_time_interval_start_date_time": r[
+                    "effective_time_frame_time_interval_start_date_time"
+                ],
+                "effective_time_frame_time_interval_start_date_time_local": r[
+                    "effective_time_frame_time_interval_start_date_time_local"
+                ],
+                "effective_time_frame_time_interval_end_date_time": r[
+                    "effective_time_frame_time_interval_end_date_time"
+                ],
+                "effective_time_frame_time_interval_end_date_time_local": r[
+                    "effective_time_frame_time_interval_end_date_time_local"
+                ],
+                "activity_name": "Total Daily Physical Activity",
+                "distance_value": round(n * rng.uniform(0.68, 0.80), 1),
+                "distance_unit": "m",
+                "kcal_burned_value": round(max(120.0, 260 + n * 0.035 + rng.uniform(-60, 80)), 1),
+                "kcal_burned_unit": "kcal",
+                "reported_activity_intensity": "moderate",
+            }
+        )
+    df = pd.DataFrame(rows)
+    starts = pd.to_datetime(df["effective_time_frame_time_interval_start_date_time"], utc=True)
+    admin = _admin_columns("physical_activity", len(df), 50000, starts.reset_index(drop=True))
+    for k, v in admin.items():
+        df.insert(0, k, v)
+    return df
+
+
+# --------------------------------------------------------------------------
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
@@ -368,12 +461,24 @@ def main() -> int:
     local_days = [(start_local_midnight + pd.Timedelta(days=d)).date() for d in range(days)]
     nights = night_windows(local_days, rng)
 
+    # Built lazily and cached: physical_activity reuses the same step totals, and
+    # leaving both until last keeps the rng sequence -- and therefore the glucose,
+    # sleep, heart-rate, oxygen and food values -- byte-identical to before.
+    _cache: dict = {}
+
+    def _steps() -> pd.DataFrame:
+        if "steps" not in _cache:
+            _cache["steps"] = build_step_count(local_days, rng)
+        return _cache["steps"]
+
     builders = {
         "blood_glucose": lambda: build_blood_glucose(start, days, rng),
         "sleep_stage_summary": lambda: build_sleep_stage_summary(nights, rng),
         "heart_rate": lambda: build_heart_rate(start, days, rng),
         "oxygen_saturation": lambda: build_oxygen_saturation(nights, rng),
         "food_entry": lambda: build_food_entry(start, days, rng),
+        "step_count": _steps,
+        "physical_activity": lambda: build_physical_activity(_steps(), rng),
     }
 
     print(f"writing synthetic JHE sample data to {out}/")

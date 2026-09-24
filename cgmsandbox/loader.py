@@ -224,3 +224,60 @@ def load_sleep_nights(client_df: pd.DataFrame) -> pd.DataFrame:
     # 'awake' = in bed but not asleep, so the stage stack sums to the night length
     n["awake_h"] = (n["in_bed_h"] - n["total_sleep_h"]).clip(lower=0)
     return n
+
+
+def load_step_count(client_df: pd.DataFrame) -> pd.DataFrame:
+    """One row per day of step totals, from a JHE client frame.
+
+    Study 30006 reports ``omh:step-count:3.0`` as a single record covering a whole
+    local day (``descriptive_statistic`` "sum" over denominator "d"), so each row
+    is a *daily total*, not an instantaneous reading. That is what makes a
+    steps-per-day histogram the natural view, and what makes an intraday step
+    trace impossible to reconstruct from this data.
+
+    Parameters
+    ----------
+    client_df : pandas.DataFrame
+        Frame from ``jh_client.list_observations_df(..., code=...)``, or the
+        equivalent flattened CSV.
+
+    Returns
+    -------
+    pandas.DataFrame
+        Columns ``date`` (local calendar date), ``steps``, ``start``, ``end``
+        (both tz-aware UTC), sorted by ``start``.
+    """
+    value_col = "step_count_value"
+    if value_col not in client_df.columns:
+        raise KeyError(
+            f"column {value_col!r} not found -- this frame does not look like an "
+            "omh:step-count:3.0 record set"
+        )
+
+    start_col = "effective_time_frame_time_interval_start_date_time"
+    end_col = "effective_time_frame_time_interval_end_date_time"
+    if start_col not in client_df.columns:
+        # point-in-time shape rather than an interval: treat the reading as a
+        # single-instant total so the caller still gets usable rows
+        start_col = "effective_time_frame_date_time"
+        end_col = start_col
+
+    out = pd.DataFrame(
+        {
+            "steps": pd.to_numeric(client_df[value_col], errors="coerce"),
+            "start": pd.to_datetime(client_df[start_col], utc=True, errors="coerce"),
+            "end": pd.to_datetime(client_df[end_col], utc=True, errors="coerce"),
+        }
+    )
+
+    # Prefer the record's own local start for the calendar date: the day a step
+    # total belongs to is a local-time notion, and the client ships that column.
+    local_col = "effective_time_frame_time_interval_start_date_time_local"
+    if local_col in client_df.columns:
+        local_start = pd.to_datetime(client_df[local_col], errors="coerce")
+        out["date"] = local_start.dt.date.values
+    else:
+        out["date"] = out["start"].dt.date
+
+    out = out.dropna(subset=["start", "steps"])
+    return out.sort_values("start").reset_index(drop=True)

@@ -120,7 +120,11 @@ def main() -> int:
         print(f"  SKIP: run tools/make_synthetic_jhe.py first ({jhe})")
     else:
         import pandas as pd
-        from cgmsandbox import SleepCompositionExtension, SleepWindowOverlay, load_sleep_nights
+
+        from cgmsandbox import (
+            SleepCompositionExtension, SleepWindowOverlay, StepCountExtension,
+            load_sleep_nights, load_step_count,
+        )
 
         cgm_csv = pd.read_csv(jhe / "blood_glucose.csv")
         cgm_csv["effective_time_frame_date_time"] = pd.to_datetime(
@@ -130,10 +134,16 @@ def main() -> int:
                     "effective_time_frame_time_interval_end_date_time"):
             sleep_csv[col] = pd.to_datetime(sleep_csv[col], utc=True)
         nights = load_sleep_nights(sleep_csv)
+        steps = load_step_count(pd.read_csv(jhe / "step_count.csv").assign(
+            effective_time_frame_time_interval_start_date_time=lambda d: pd.to_datetime(
+                d["effective_time_frame_time_interval_start_date_time"], utc=True),
+            effective_time_frame_time_interval_end_date_time=lambda d: pd.to_datetime(
+                d["effective_time_frame_time_interval_end_date_time"], utc=True)))
 
         for label, factory in [
             ("SleepWindowOverlay", lambda: (SleepWindowOverlay(nights), False)),
             ("SleepCompositionExtension", lambda: (SleepCompositionExtension(nights), True)),
+            ("StepCountExtension", lambda: (StepCountExtension(steps), True)),
         ]:
             for mode in ("daily", "full"):
                 total += 1
