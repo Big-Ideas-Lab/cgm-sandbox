@@ -732,3 +732,42 @@ class PPGROverlay:
                         linewidth=lw, solid_capstyle="round",
                         zorder=6, clip_on=True
                     )
+
+
+class SleepWindowOverlay:
+    """Shade sleep windows behind the glucose trace.
+
+    Registered via ``viewer.add_overlay(...)``. Works in both 'daily' and 'full'
+    view because it walks ``viewer.iter_axes_by_time()``.
+
+    Parameters
+    ----------
+    nights : pandas.DataFrame
+        Output of :func:`~cgmsandbox.loader.load_sleep_nights`.
+    color : str
+        Fill colour of the sleep band.
+    alpha : float
+        Fill opacity. Keep it low so the glucose trace stays readable.
+    outline : bool
+        Draw a hairline on the band edges so boundaries stay legible where the
+        band overlaps the target range shading.
+    """
+
+    def __init__(self, nights: pd.DataFrame, color: str = "#3b6ea5",
+                 alpha: float = 0.13, outline: bool = True):
+        self.nights = nights
+        self.color = color
+        self.alpha = alpha
+        self.outline = outline
+
+    def draw(self):
+        for ax, start, end in self.viewer.iter_axes_by_time():
+            for _, r in self.nights.iterrows():
+                s = max(r.sleep_start, start)
+                e = min(r.sleep_end, end)
+                if s < e:
+                    ax.axvspan(
+                        s, e, facecolor=self.color, alpha=self.alpha, zorder=0,
+                        edgecolor=self.color if self.outline else "none",
+                        linewidth=0.8 if self.outline else 0,
+                    )

@@ -107,3 +107,80 @@ class HypnogramExtension:
         ax.xaxis.set_major_locator(mdates.HourLocator(interval=viewer.scale(2, 6), tz=start.tzinfo))
         ax.xaxis.set_major_formatter(mdates.DateFormatter("%-I %p", tz=start.tzinfo))
         ax.tick_params(labelsize=viewer.scale(10, 7))
+
+
+# Stage order and colours for SleepCompositionExtension; stacked bottom-up.
+SLEEP_STAGE_COLORS = {
+    "deep_h": ("#1b3a5c", "Deep"),
+    "light_h": ("#4a7fb5", "Light"),
+    "rem_h": ("#8fc0e8", "REM"),
+    "awake_h": ("#d9d9d9", "Awake"),
+}
+
+
+class SleepCompositionExtension:
+    """Per-night stacked stage composition, as a second subplot row.
+
+    This is deliberately NOT a hypnogram. Stage *timing within* the night is not
+    recorded in an aggregate sleep-stage-summary record, so it cannot be
+    reconstructed. Each night renders as one stacked bar positioned at its sleep
+    window: height carries the stage quantities, x-position carries the window.
+
+    For a true hypnogram use :class:`HypnogramExtension`, which needs
+    ``sleep_stage_episodes_*`` -- present in the Open mHealth sample data, absent
+    from JHE study 30006.
+
+    Parameters
+    ----------
+    nights : pandas.DataFrame
+        Output of :func:`~cgmsandbox.loader.load_sleep_nights`.
+    bar_width_h : float
+        Bar width in hours.
+    y_max : float or None
+        Y-axis ceiling. Defaults to one hour above the longest night in bed.
+    show_efficiency : bool
+        Annotate each bar with the night's sleep efficiency.
+    """
+
+    def __init__(self, nights: pd.DataFrame, bar_width_h: float = 6.0,
+                 y_max: float | None = None, show_efficiency: bool = True):
+        self.nights = nights
+        self.bar_width = pd.Timedelta(hours=bar_width_h)
+        self.y_max = y_max if y_max is not None else float(
+            np.ceil(nights["in_bed_h"].max()) + 1.0)
+        self.show_efficiency = show_efficiency
+
+    def draw(self):
+        viewer, ax = self.viewer, self.ax
+        start, end = viewer.view_start, viewer.view_end
+        vis = self.nights[(self.nights.sleep_end > start) & (self.nights.sleep_start < end)]
+
+        seen: set[str] = set()
+        for _, r in vis.iterrows():
+            center = r.sleep_start + (r.sleep_end - r.sleep_start) / 2
+            bottom = 0.0
+            for col, (color, label) in SLEEP_STAGE_COLORS.items():
+                h = float(r.get(col) or 0.0)
+                if h <= 0:
+                    continue
+                ax.bar(center, h, bottom=bottom, width=self.bar_width,
+                       color=color, edgecolor="white", linewidth=0.7,
+                       label=label if label not in seen else None, zorder=3)
+                seen.add(label)
+                bottom += h
+
+            if self.show_efficiency and pd.notna(r.efficiency_pct):
+                ax.text(center, bottom + 0.12, f"{r.efficiency_pct:.0f}% eff.",
+                        ha="center", va="bottom", fontsize=8, color="0.35")
+
+        ax.set_ylim(0, self.y_max)
+        ax.set_ylabel("Sleep (h)", color="0.2", fontsize=10)
+        if seen:
+            ax.legend(ncol=4, fontsize=9, frameon=False, loc="upper right")
+        for sp in ("top", "right"):
+            ax.spines[sp].set_visible(False)
+        ax.tick_params(length=0)
+        step = viewer.scale(2, 6)
+        ax.xaxis.set_major_locator(mdates.HourLocator(interval=step, tz=start.tzinfo))
+        ax.xaxis.set_major_formatter(mdates.DateFormatter("%-I %p", tz=start.tzinfo))
+        ax.tick_params(labelsize=viewer.scale(10, 7))

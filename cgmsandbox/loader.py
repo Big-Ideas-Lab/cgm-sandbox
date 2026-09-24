@@ -171,3 +171,56 @@ def load_food_entry_data(source: Literal["file", "client"],
     df["calories"] = pd.to_numeric(raw_df["calories.value"], errors="coerce")
 
     return df
+
+
+def load_sleep_nights(client_df: pd.DataFrame) -> pd.DataFrame:
+    """Per-night sleep aggregates from a JHE ``ieee:sleep-stage-summary:1.0`` frame.
+
+    Complements :func:`load_sleep_data`. That function reads stage *episodes* and
+    is therefore only usable when the records carry ``sleep_stage_episodes_*``
+    columns. Many real studies do not: study 30006's sleep records hold aggregate
+    durations only, so ``load_sleep_data(source="client")`` cannot be used at all
+    there. This returns what an aggregate-only record does support.
+
+    Returns one row per night with durations in hours, sorted by bedtime:
+
+    ``sleep_start``, ``sleep_end``, ``total_sleep_h``, ``deep_h``, ``light_h``,
+    ``rem_h``, ``awake_h``, ``efficiency_pct``, ``in_bed_h``
+
+    Pair with :class:`~cgmsandbox.overlays.SleepWindowOverlay` and
+    :class:`~cgmsandbox.extensions.SleepCompositionExtension`.
+    """
+    required = [
+        "effective_time_frame_time_interval_start_date_time",
+        "effective_time_frame_time_interval_end_date_time",
+        "sleep_stage_summary_total_sleep_time_value",
+    ]
+    missing = [c for c in required if c not in client_df.columns]
+    if missing:
+        raise ValueError(
+            "load_sleep_nights expects aggregate sleep-stage-summary columns; "
+            f"missing {missing}. Available: {sorted(client_df.columns)}"
+        )
+
+    n = pd.DataFrame({
+        "sleep_start": pd.to_datetime(
+            client_df["effective_time_frame_time_interval_start_date_time"], utc=True, errors="coerce"),
+        "sleep_end": pd.to_datetime(
+            client_df["effective_time_frame_time_interval_end_date_time"], utc=True, errors="coerce"),
+        "total_sleep_h": pd.to_numeric(
+            client_df["sleep_stage_summary_total_sleep_time_value"], errors="coerce") / 3600.0,
+        "deep_h": pd.to_numeric(
+            client_df.get("sleep_stage_summary_deep_sleep_duration_value"), errors="coerce") / 3600.0,
+        "light_h": pd.to_numeric(
+            client_df.get("sleep_stage_summary_light_sleep_duration_value"), errors="coerce") / 3600.0,
+        "rem_h": pd.to_numeric(
+            client_df.get("sleep_stage_summary_rem_sleep_duration_value"), errors="coerce") / 3600.0,
+        "efficiency_pct": pd.to_numeric(
+            client_df.get("sleep_stage_summary_sleep_efficiency_percentage_value"), errors="coerce"),
+    })
+    n = n.dropna(subset=["sleep_start", "sleep_end"]).sort_values("sleep_start")
+    n = n.reset_index(drop=True)
+    n["in_bed_h"] = (n["sleep_end"] - n["sleep_start"]).dt.total_seconds() / 3600.0
+    # 'awake' = in bed but not asleep, so the stage stack sums to the night length
+    n["awake_h"] = (n["in_bed_h"] - n["total_sleep_h"]).clip(lower=0)
+    return n

@@ -321,3 +321,61 @@ def extract_ppgr_pairs(cgm_df: pd.DataFrame,
     
     out = pd.DataFrame(rows)
     return out
+
+
+# Glucose target range, mg/dL.
+TARGET_RANGE = (70, 180)
+
+
+def label_sleep_period(cgm: pd.DataFrame, nights: pd.DataFrame,
+                       time_col: str = "effective_time_frame_date_time",
+                       value_col: str = "blood_glucose_value") -> pd.DataFrame:
+    """Tag each glucose reading with whether it falls inside a sleep window.
+
+    Parameters
+    ----------
+    cgm : pandas.DataFrame
+        Raw glucose frame, or the output of :func:`process_cgm` (``time``/``gl``).
+    nights : pandas.DataFrame
+        Output of :func:`~cgmsandbox.loader.load_sleep_nights`.
+
+    Returns
+    -------
+    pandas.DataFrame with columns ``time``, ``gl``, ``asleep``.
+    """
+    if "time" in cgm.columns and "gl" in cgm.columns:
+        out = cgm[["time", "gl"]].copy()
+    else:
+        out = cgm[[time_col, value_col]].copy()
+        out.columns = ["time", "gl"]
+    out["time"] = pd.to_datetime(out["time"], utc=True, errors="coerce")
+    out["gl"] = pd.to_numeric(out["gl"], errors="coerce")
+    out = out.dropna().sort_values("time").reset_index(drop=True)
+    out["asleep"] = False
+    for _, r in nights.iterrows():
+        m = (out["time"] >= r.sleep_start) & (out["time"] < r.sleep_end)
+        out.loc[m, "asleep"] = True
+    return out
+
+
+def nocturnal_vs_diurnal(cgm: pd.DataFrame, nights: pd.DataFrame,
+                         target: tuple[int, int] = TARGET_RANGE) -> pd.DataFrame:
+    """Mean, variability and time-in-range for asleep vs awake periods.
+
+    This is the measure that genuinely requires BOTH modalities: it cannot be
+    computed from the glucose record alone (no sleep) nor the sleep record alone
+    (no glucose).
+    """
+    lab = label_sleep_period(cgm, nights)
+    rows = []
+    for asleep, g in lab.groupby("asleep"):
+        tir = ((g.gl >= target[0]) & (g.gl <= target[1])).mean() * 100
+        rows.append({
+            "period": "asleep" if asleep else "awake",
+            "readings": int(len(g)),
+            "mean_mgdl": round(float(g.gl.mean()), 1),
+            "sd": round(float(g.gl.std()), 1),
+            "cv_pct": round(float(g.gl.std() / g.gl.mean() * 100), 1),
+            "time_in_range_pct": round(float(tir), 1),
+        })
+    return pd.DataFrame(rows)
