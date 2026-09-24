@@ -1,0 +1,29 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "cgmsandbox"
+version = "0.1.0"
+description = "Interactive exploration and visualization of continuous glucose monitoring and wearable data"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "matplotlib",
+    "numpy",
+    "pandas",
+    "python-dateutil",
+    "ipywidgets",
+    "mplcursors",
+    "ruptures",
+]
+
+[project.optional-dependencies]
+# Only needed for the `source="client"` path, which reads from a JupyterHealth
+# Exchange client DataFrame. The loaders themselves accept a DataFrame, so the
+# package has no hard dependency on the Exchange.
+jhe = ["jupyterhealth-client"]
+
+[tool.hatch.build.targets.wheel]
+# Includes cgmsandbox/fonts/* as package data so the Lato font ships with the wheel.
+packages = ["cgmsandbox"]

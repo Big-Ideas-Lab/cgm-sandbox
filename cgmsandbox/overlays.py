@@ -1,12 +1,12 @@
-from loader import load_sleep_data, load_food_entry_data
+from .loader import load_sleep_data, load_food_entry_data
 from pandas import Timedelta
 import pandas as pd
 import numpy as np
 import mplcursors
 from typing import Literal, Optional
 
-from cgm_methods import extract_wakeup_glucose
-from cgmquantify import summarize_measures, cv, mage_ma_segments
+from .cgm_methods import extract_wakeup_glucose
+from .cgmquantify import summarize_measures, cv, mage_ma_segments
 
 from typing import Literal
 

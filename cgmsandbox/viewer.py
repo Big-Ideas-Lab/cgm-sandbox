@@ -4,17 +4,21 @@ import matplotlib as mpl
 import pandas as pd
 from ipywidgets import widgets, VBox, HBox, Output, Layout
 from datetime import time, timedelta
+from pathlib import Path
 from typing import Literal, Optional
-import os
 
-from loader import load_cgm_data
-from cgm_methods import process_cgm
+import matplotlib.font_manager  # noqa: F401  (ensures mpl.font_manager is bound)
+
+from .loader import load_cgm_data
+from .cgm_methods import process_cgm
 
 
-## Setup fonts
-font_path = "./fonts/Lato-Regular.ttf"
-if os.path.exists(font_path):
-    mpl.font_manager.fontManager.addfont(font_path)
+## Setup fonts — resolved relative to the package so it works wherever it is
+## installed (editable checkout, site-packages, or a notebook in another dir).
+_PKG_DIR = Path(__file__).resolve().parent
+_FONT_PATH = _PKG_DIR / "fonts" / "Lato-Regular.ttf"
+if _FONT_PATH.exists():
+    mpl.font_manager.fontManager.addfont(str(_FONT_PATH))
     mpl.rcParams["font.family"] = "Lato"
 
 

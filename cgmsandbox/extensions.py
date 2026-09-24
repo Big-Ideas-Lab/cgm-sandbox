@@ -1,4 +1,4 @@
-from loader import load_sleep_data
+from .loader import load_sleep_data
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 import pandas as pd
