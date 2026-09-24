@@ -25,7 +25,7 @@ if _FONT_PATH.exists():
 class CGMViewer:
     def __init__(self,
                  source: Literal["file", "client"],
-                 base_path: str | None = None, 
+                 base_path: str | None = None,
                  subject_id: int | None = None,
                  filename: str | None = None,
                  client_df: Optional[pd.DataFrame] = None,
@@ -33,10 +33,10 @@ class CGMViewer:
 
         self.subject_id = subject_id
         self.y_min, self.y_max = gl_range
-        
+
         raw_cgm_df = load_cgm_data(source=source,
-                                   base_path=base_path, 
-                                   subject_id=subject_id, 
+                                   base_path=base_path,
+                                   subject_id=subject_id,
                                    filename=filename,
                                    client_df=client_df
                                   )
@@ -98,16 +98,16 @@ class CGMViewer:
         for axis in ["left", "bottom"]:
             ax.spines[axis].set_linewidth(1.8)
             ax.spines[axis].set_color("#D3D3D3")
-        
+
 
         ax.tick_params(axis="both", which="both", length=0)
         ax.tick_params(axis="y", pad=8)
         ax.tick_params(axis="x", pad=8)
 
         ax.set_ylabel(
-            "mg/dL", 
-            rotation=0, 
-            labelpad=0, 
+            "mg/dL",
+            rotation=0,
+            labelpad=0,
             ha="right",
             color="0.2"
         )
@@ -119,7 +119,7 @@ class CGMViewer:
         overlay.viewer = self
         self.overlays.append(overlay)
 
-    
+
     def add_extensions(self, extension):
         extension.viewer = self
         self.extensions.append(extension)
@@ -138,15 +138,15 @@ class CGMViewer:
                             width="100%",
                             padding="6px 0 8px 0"
                         ))
-            
+
             container = VBox([toolbar, self.out],
                              layout=widgets.Layout(align_items="center", width="100%"))
-            
+
             return container
         else:
             return VBox([self.out])
-    
-    
+
+
     def render(self, view_mode="daily"):
         self.view_mode = view_mode
         if view_mode == "daily":
@@ -155,7 +155,7 @@ class CGMViewer:
             self._render_full()
         else:
             raise ValueError(f"Unknown view model: {view_mode}")
-    
+
 
     # --- Internal rendering ---
     def _render_day(self, selected_date):
@@ -183,7 +183,7 @@ class CGMViewer:
             self.ax_cgm = self.axes[0]
             self.ax_cgm.plot(self.day_df["time"], self.day_df["gl"], color="black")
             self._style_axis(self.ax_cgm)
-            
+
             self.ax_cgm.set_ylim(self.y_min, self.y_max)
             self.ax_cgm.set_xlim(self.view_start, self.view_end)
             self.ax_cgm.xaxis.set_major_locator(mdates.HourLocator(interval=2, tz=tzinfo))
@@ -201,7 +201,7 @@ class CGMViewer:
             plt.tight_layout()
             plt.show()
 
-    
+
     def _render_full(self):
         self.df["weekday"] = pd.to_datetime(self.df["date"]).dt.weekday
         self.df["week_index"] = ((pd.to_datetime(self.df["date"]) - pd.to_datetime(self.unique_days[0])).dt.days // 7)
@@ -244,13 +244,13 @@ class CGMViewer:
                 ax.xaxis.set_major_locator(mdates.HourLocator(byhour=[12], tz=tzinfo))
                 ax.xaxis.set_major_formatter(mdates.DateFormatter("%I %p", tz=tzinfo))
                 ax.tick_params(axis='x', labelrotation=0)
-            
+
             for overlay in self.overlays:
                 overlay.draw()
 
             plt.tight_layout()
             plt.show()
-    
+
     # --- Navigation ---
     def _change_day(self, change):
         self.day_index["idx"] = self.day_dropdown.options.index(change["new"])
@@ -261,7 +261,7 @@ class CGMViewer:
         idx = self.unique_days.index(self.day_dropdown.value)
         if idx > 0:
             self.day_dropdown.value = self.unique_days[idx - 1]
-    
+
 
     def _go_fwd(self, _):
         idx = self.unique_days.index(self.day_dropdown.value)

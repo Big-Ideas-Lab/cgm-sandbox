@@ -6,8 +6,8 @@ import re
 from typing import Literal, Optional
 
 def load_cgm_data(source: Literal["file", "client"],
-                  base_path: str | Path | None=None, 
-                  subject_id: int | None = None, 
+                  base_path: str | Path | None=None,
+                  subject_id: int | None = None,
                   filename: str | None = None,
                   client_df: Optional[pd.DataFrame] = None
                  ) -> pd.DataFrame:
@@ -17,13 +17,13 @@ def load_cgm_data(source: Literal["file", "client"],
         if client_df is None:
             raise ValueError("client_df must be provided when source='client'.")
         df = pd.DataFrame({
-            "time": pd.to_datetime(client_df["effective_time_frame_date_time"], 
+            "time": pd.to_datetime(client_df["effective_time_frame_date_time"],
                                    utc=True, errors="coerce"),
             "gl": pd.to_numeric(client_df["blood_glucose_value"], errors="coerce")
         })
 
         return df.sort_values("time").reset_index(drop=True)
-            
+
     # Prepare dataframe if given from local file
     base_path = Path(base_path)
     subject_dir = base_path / str(subject_id) if subject_id else base_path
@@ -90,14 +90,14 @@ def load_sleep_data(source: Literal["file", "client"],
         candidates = [subject_dir / filename, base_path / filename]
     else:
         raise ValueError("Must specify either `filename` or `subject_id`.")
-    
+
     json_file = next((p for p in candidates if p.exists()), None)
     if json_file is None:
         raise FileNotFoundError(f"No CGM file found (tried {candidates})")
-    
+
     with open(json_file, "r") as file:
         data = json.load(file)
-    
+
     records = []
 
     body = data.get("body", [])
@@ -112,7 +112,7 @@ def load_sleep_data(source: Literal["file", "client"],
             stage = ep.get("sleep_stage_state")
 
             records.append({"start": start, "end": end, "stage": stage})
-    
+
     return pd.DataFrame(records)
 
 
@@ -135,7 +135,7 @@ def load_food_entry_data(source: Literal["file", "client"],
             "calories": pd.to_numeric(client_df.get("calories_value"), errors="coerce")
         })
         return df.dropna(subset=["time"]).sort_values("time").reset_index(drop=True)
-        
+
     # Prepare dataframe if given from local file
     base_path = Path(base_path)
     subject_dir = base_path / str(subject_id) if subject_id is not None else base_path

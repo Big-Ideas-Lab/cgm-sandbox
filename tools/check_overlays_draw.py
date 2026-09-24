@@ -106,6 +106,53 @@ def main() -> int:
 
     print("=" * 78)
     print(f"RESULT: {passed}/{total} draw checks passed")
+
+    # ---------------------------------------------------------------- JHE path
+    # SleepWindowOverlay / SleepCompositionExtension consume per-night aggregates,
+    # which only exist in the client (JHE) shape, so they need the synthetic
+    # sample rather than the Open mHealth file sample.
+    print()
+    print("=" * 78)
+    print("aggregate-sleep overlays on the synthetic JHE sample")
+    print("=" * 78)
+    jhe = Path(__file__).resolve().parent.parent / "sample_data" / "jhe"
+    if not (jhe / "sleep_stage_summary.csv").exists():
+        print(f"  SKIP: run tools/make_synthetic_jhe.py first ({jhe})")
+    else:
+        import pandas as pd
+        from cgmsandbox import SleepCompositionExtension, SleepWindowOverlay, load_sleep_nights
+
+        cgm_csv = pd.read_csv(jhe / "blood_glucose.csv")
+        cgm_csv["effective_time_frame_date_time"] = pd.to_datetime(
+            cgm_csv["effective_time_frame_date_time"], utc=True)
+        sleep_csv = pd.read_csv(jhe / "sleep_stage_summary.csv")
+        for col in ("effective_time_frame_time_interval_start_date_time",
+                    "effective_time_frame_time_interval_end_date_time"):
+            sleep_csv[col] = pd.to_datetime(sleep_csv[col], utc=True)
+        nights = load_sleep_nights(sleep_csv)
+
+        for label, factory in [
+            ("SleepWindowOverlay", lambda: (SleepWindowOverlay(nights), False)),
+            ("SleepCompositionExtension", lambda: (SleepCompositionExtension(nights), True)),
+        ]:
+            for mode in ("daily", "full"):
+                total += 1
+                tag = f"{label} [{mode}]"
+                try:
+                    viewer = CGMViewer(source="client", client_df=cgm_csv, gl_range=(0, 250))
+                    target, is_ext = factory()
+                    if is_ext:
+                        viewer.add_extensions(target)
+                    else:
+                        viewer.add_overlay(target)
+                    viewer.selected_date = viewer.unique_days[0]
+                    viewer.render(view_mode=mode)
+                    print(f"  [PASS] {tag}")
+                    passed += 1
+                except Exception as exc:  # noqa: BLE001
+                    print(f"  [FAIL] {tag}  {type(exc).__name__}: {exc}")
+                    failed.append((tag, traceback.format_exc()))
+        print(f"RESULT: {passed}/{total} draw checks passed (incl. JHE)")
     for label, tb in failed:
         print(f"\n--- {label} ---")
         print(tb)

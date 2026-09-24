@@ -207,7 +207,7 @@ def extract_wakeup_glucose(cgm_df: pd.DataFrame,
     """
     if sleep_df is None or sleep_df.empty:
         return pd.DataFrame(columns=["sleep_start", "sleep_end", "wakeup_time", "wakeup_glucose"])
-    
+
     sleep_df = sleep_df.sort_values("start").reset_index(drop=True)
     gap_threshold = pd.Timedelta(minutes=gap_threshold_minutes)
 
@@ -246,7 +246,7 @@ def extract_wakeup_glucose(cgm_df: pd.DataFrame,
 
     return pd.DataFrame(results)
 
-    
+
 def extract_ppgr_pairs(cgm_df: pd.DataFrame,
                        food_df: pd.DataFrame,
                        window_minutes: int=120,
@@ -296,12 +296,12 @@ def extract_ppgr_pairs(cgm_df: pd.DataFrame,
     if "nutrients" in meals.columns:
         nutrient_keys = sorted({k for x in meals["nutrients"].dropna()
                                   for k in (x.keys() if isinstance(x, dict) else [])})
-    
+
     for meal_id, m in meals.iterrows():
         t0 = m["time"]
         t1 = t0 + window
         sub = cgm[(cgm["time"] >= t0) & (cgm["time"] <= t1)][["time", "gl"]].dropna()
-        
+
         row = {
             "meal_id": meal_id,
             "meal_time": t0,
@@ -310,7 +310,7 @@ def extract_ppgr_pairs(cgm_df: pd.DataFrame,
 
         if "meal_type" in meals.columns:
             row["meal_type"] = m.get("meal_type")
-        
+
         if "nutrients" in meals.columns:
             nd = m.get("nutrients", {})
             if isinstance(nd, dict):
@@ -318,7 +318,7 @@ def extract_ppgr_pairs(cgm_df: pd.DataFrame,
                     row[k] = nd.get(k, np.nan)
 
         rows.append(row)
-    
+
     out = pd.DataFrame(rows)
     return out
 

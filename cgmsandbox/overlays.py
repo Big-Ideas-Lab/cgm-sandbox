@@ -201,7 +201,7 @@ class TimeInRangeOverlay:
                         color=color, linewidth=lw,
                         solid_capstyle="round", zorder=4, clip_on=True)
 
-                
+
 class FoodEntryOverlay:
     """
     Overlay a marker that annotates CGM with food log entries, scaling marker size by
@@ -225,7 +225,7 @@ class FoodEntryOverlay:
     Expected columns in the loaded food dataframe include at least:
     ``["time", "food_name", "carbohydrate"]``.
     """
-    def __init__(self, 
+    def __init__(self,
                  source: Literal["file", "client"],
                  base_path: str | None = None,
                  subject_id: int | None = None,
@@ -237,17 +237,17 @@ class FoodEntryOverlay:
         self.filename = filename
         self.client_df = client_df
         self._cursor = None
-    
+
     def _size_from_carbs(self, carbs: float, viewer) -> float:
         carbs = float(np.clip(carbs, 0.0, 100.0))
         s_min = viewer.scale(40, 15)
-        s_max = viewer.scale(280, 80) 
+        s_max = viewer.scale(280, 80)
         return np.interp(carbs, [0.0, 100.0], [s_min, s_max])
 
     def draw(self):
         viewer = self.viewer
         food_df = load_food_entry_data(source=self.source,
-                                       base_path=self.base_path, 
+                                       base_path=self.base_path,
                                        subject_id=viewer.subject_id,
                                        filename=self.filename,
                                        client_df=self.client_df)
@@ -267,10 +267,10 @@ class FoodEntryOverlay:
                 carbs_val = row.get("carbohydrate")
 
                 tip = f"{food_name}\n$\\bf{{Carbs:}}$ {carbs_val:.0f} g"
-                
+
                 idx = (viewer.df["time"] - row["time"]).abs().idxmin()
                 gl = viewer.df.loc[idx, "gl"]
-                
+
                 s = self._size_from_carbs(carbs_val, viewer)
 
                 pt = ax.scatter(row["time"], gl, s=s, color="orange", alpha=0.7,
@@ -455,7 +455,7 @@ class CvOverlay:
 
 class MageOverlay:
     """
-    Visualize Mean Amplitude of Glucose Excursions (MAGE) within the current 
+    Visualize Mean Amplitude of Glucose Excursions (MAGE) within the current
     window using spans and amplitude whiskers.
 
     The overlay shades each counted MAGE segment, draws a vertical amplitude
@@ -567,7 +567,7 @@ class MageOverlay:
                       linewidth=viewer.scale(1.5, 1.2), alpha=0.9, zorder=3)
             ax.hlines(gmax, t_mid - cap_half, t_mid + cap_half, color=color,
                       linewidth=viewer.scale(1.5, 1.2), alpha=0.9, zorder=3)
-            
+
 
 # --------------------------------
 # Multi-modal Biomarker Overlays
@@ -598,7 +598,7 @@ class WakeupGlucoseOverlay:
     """
     def __init__(self,
                  source: Literal["file", "client"],
-                 base_path: str | None = None, 
+                 base_path: str | None = None,
                  subject_id: int | None = None,
                  filename: str | None = None,
                  client_df: Optional[pd.DataFrame] = None,
@@ -612,13 +612,13 @@ class WakeupGlucoseOverlay:
 
     def draw(self):
         viewer = self.viewer
-        
+
         sleep_df = load_sleep_data(source=self.source,
                            base_path=self.base_path,
                            filename=self.filename,
                            client_df=self.client_df
                           )
-        
+
         wg_df = extract_wakeup_glucose(viewer.df, sleep_df, min_sleep_hours=self.min_sleep_hours)
         if wg_df.empty:
             return
@@ -674,7 +674,7 @@ class PPGROverlay:
     """
     def __init__(self,
                  source: Literal["file", "client"],
-                 base_path: str | None = None, 
+                 base_path: str | None = None,
                  subject_id: int | None = None,
                  filename: str | None = None,
                  client_df: Optional[pd.DataFrame] = None,
@@ -693,11 +693,11 @@ class PPGROverlay:
 
         # Load food log aligned to the viewer's timezone (same pattern you use elsewhere)
         food_df = load_food_entry_data(source=self.source,
-                                       base_path=self.base_path, 
+                                       base_path=self.base_path,
                                        subject_id=v.subject_id,
                                        filename=self.filename,
                                        client_df=self.client_df)
-        
+
         # Meals that overlap the visible window once expanded by the PPGR window
         meals = food_df[(food_df["time"] < v.view_end) & (food_df["time"] + self.window > v.view_start)]
 

@@ -40,7 +40,7 @@ class HypnogramExtension:
     """
     def __init__(self,
                  source: Literal["file", "client"],
-                 base_path: str | None = None, 
+                 base_path: str | None = None,
                  subject_id: int | None = None,
                  filename: str | None = None,
                  client_df: Optional[pd.DataFrame] = None,
@@ -99,7 +99,7 @@ class HypnogramExtension:
         ax.set_yticks([1, 2, 3, 4])
         ax.set_yticklabels(["Deep", "Light", "REM", "Awake"])
         ax.set_ylabel(
-            "Sleep Stage", 
+            "Sleep Stage",
             color="0.2",
             fontsize=10
         )
