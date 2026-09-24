@@ -12,11 +12,13 @@ executing==2.2.1
 fonttools==4.60.1
 idna==3.11
 ipykernel==7.0.1
+ipympl==0.10.0
 ipython==8.37.0
 ipywidgets==8.1.7
 jedi==0.19.2
 jupyter_client==8.6.3
 jupyter_core==5.9.1
+jupyterhealth_client==0.4.0
 jupyterlab_widgets==3.0.15
 kiwisolver==1.4.9
 matplotlib==3.10.7
