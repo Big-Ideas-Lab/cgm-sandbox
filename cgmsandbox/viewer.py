@@ -126,8 +126,17 @@ class CGMViewer:
 
 
     def show(self, view_mode="daily"):
-        # Initialize with the first day
-        self.day_dropdown.value = self.unique_days[0]
+        # Setting .value fires the dropdown observer (_change_day), which renders.
+        # Unhook it for this one assignment so the explicit render below is the
+        # only render -- otherwise every show() builds two ipympl figures, which
+        # doubles the widget traffic and orphans the first canvas.
+        self.day_dropdown.unobserve(self._change_day, names="value")
+        try:
+            self.day_dropdown.value = self.unique_days[0]
+        finally:
+            self.day_dropdown.observe(self._change_day, names="value")
+
+        self.selected_date = self.unique_days[0]
         self.render(view_mode=view_mode)
 
         if view_mode == "daily":
@@ -171,11 +180,17 @@ class CGMViewer:
 
         with self.out:
             self.out.clear_output(wait=True)
+            # ipympl canvases are widgets: leaving the previous one open leaks a
+            # comm per redraw and eventually stalls the frontend.
+            if getattr(self, "_fig", None) is not None:
+                plt.close(self._fig)
+                self._fig = None
             fig, self.axes = plt.subplots(
                 nrows=nrows, figsize=(15, sum(heights)),
                 sharex=True, gridspec_kw={"height_ratios": heights}
             )
             fig.canvas.header_visible = False
+            self._fig = fig
             if nrows == 1:
                 self.axes = [self.axes]
 
@@ -211,8 +226,12 @@ class CGMViewer:
 
         with self.out:
             self.out.clear_output(wait=True)
+            if getattr(self, "_fig", None) is not None:
+                plt.close(self._fig)
+                self._fig = None
             fig, axes = plt.subplots(nrows=2, figsize=(20, 4), sharey=True)
             fig.canvas.header_visible = False
+            self._fig = fig
             self.view_start = start
             self.view_end = start + timedelta(days=14)
             self.axes = list(axes)
