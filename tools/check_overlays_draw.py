@@ -122,8 +122,9 @@ def main() -> int:
         import pandas as pd
 
         from cgmsandbox import (
-            SleepCompositionExtension, SleepWindowOverlay, StepCountExtension,
-            load_sleep_nights, load_step_count,
+            MageJumpOverlay, SleepCompositionExtension, SleepWindowOverlay,
+            StepCountExtension, WakeupGlucoseOverlay, load_sleep_nights,
+            load_step_count,
         )
 
         cgm_csv = pd.read_csv(jhe / "blood_glucose.csv")
@@ -162,6 +163,44 @@ def main() -> int:
                 except Exception as exc:  # noqa: BLE001
                     print(f"  [FAIL] {tag}  {type(exc).__name__}: {exc}")
                     failed.append((tag, traceback.format_exc()))
+        # Overlays that must produce visible artists, not merely run. "Did it
+        # raise?" does not catch an overlay that silently draws nothing, which is
+        # the failure mode that matters here. Artists are counted as a delta
+        # against the same view rendered without the overlay, because an axis
+        # carries gridlines and a trace of its own, so an absolute count proves
+        # nothing.
+        def artists(viewer):
+            axes = [viewer.ax_cgm] if viewer.ax_cgm is not None else list(viewer.axes)
+            return sum(len(a.lines) + len(a.patches) + len(a.collections) for a in axes)
+
+        for label, build in [
+            ("MageJumpOverlay",
+             lambda: MageJumpOverlay(threshold=cgm_csv["blood_glucose_value"].std())),
+            ("WakeupGlucoseOverlay [aggregate sleep]",
+             lambda: WakeupGlucoseOverlay(source="client", nights=nights,
+                                          min_sleep_hours=7.0)),
+        ]:
+            for mode in ("daily", "full"):
+                total += 1
+                tag = f"{label} [{mode}]"
+                try:
+                    baseline = CGMViewer(source="client", client_df=cgm_csv, gl_range=(0, 250))
+                    baseline.selected_date = baseline.unique_days[0]
+                    baseline.render(view_mode=mode)
+
+                    viewer = CGMViewer(source="client", client_df=cgm_csv, gl_range=(0, 250))
+                    viewer.add_overlay(build())
+                    viewer.selected_date = viewer.unique_days[0]
+                    viewer.render(view_mode=mode)
+
+                    drawn = artists(viewer) - artists(baseline)
+                    assert drawn > 0, f"overlay added no artists in the {mode} view"
+                    print(f"  [PASS] {tag}  ({drawn} artist(s))")
+                    passed += 1
+                except Exception as exc:  # noqa: BLE001
+                    print(f"  [FAIL] {tag}  {type(exc).__name__}: {exc}")
+                    failed.append((tag, traceback.format_exc()))
+
         print(f"RESULT: {passed}/{total} draw checks passed (incl. JHE)")
     for label, tb in failed:
         print(f"\n--- {label} ---")
